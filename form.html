@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>RRTMG_SW Aerosols Input Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 1.5rem; }
+    fieldset { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; }
+    legend { font-weight: 600; }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; min-width: 220px; }
+    label { font-size: 0.9rem; margin-bottom: 0.25rem; }
+    input[type="text"], input[type="number"] { padding: 0.4rem; }
+    .muted { color: #666; font-size: 0.85rem; }
+    .btn { padding: 0.5rem 0.75rem; border: 1px solid #555; background: #fafafa; cursor: pointer; }
+    .btn:hover { background: #f0f0f0; }
+    .small { font-size: 0.85rem; }
+    .grid-14 { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 0.5rem; }
+    .grid-2 { display: grid; grid-template-columns: 220px 220px; gap: 0.5rem; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 1rem 0; }
+  </style>
+</head>
+<body>
+  <h1>RRTMG_SW Aerosols Input Generator</h1>
+  <p class="muted">
+    Enter values exactly as required by RRTMG_SW. Ranges:
+    A1.1 NAER 1–99; A2.1 NLAY 0–51; IOAD 0–1; ISSA 0–1; IPHA 0–2; AERPAR 0.00–1.00;
+    Layer Optical Depth 0.0000–1.0000; SSA/IPHA per-band 0.00–1.00.
+  </p>
+
+  <form method="post" action="/generate" id="aerosol-form">
+    <div class="col" style="max-width: 300px;">
+      <label for="NAER">A1.1 Number of Aerosols (1–99)</label>
+      <input type="number" id="NAER" name="NAER" value="1" min="1" max="99" />
+    </div>
+
+    <div id="aerosols-container"></div>
+
+    <button type="button" class="btn" id="add-aerosol">Add aerosol</button>
+    <button type="submit" class="btn">Generate Aer_input.txt</button>
+  </form>
+
+  <script>
+    const aerosolsContainer = document.getElementById('aerosols-container');
+    const addBtn = document.getElementById('add-aerosol');
+    const naerInput = document.getElementById('NAER');
+
+    function bandInputs(prefix, label, nameBase, count) {
+      const wrap = document.createElement('div');
+      const lab = document.createElement('label');
+      lab.textContent = label;
+      wrap.appendChild(lab);
+
+      if (count === 1) {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.name = `${prefix}${nameBase}-0`;
+        inp.placeholder = 'e.g., 0.50';
+        wrap.appendChild(inp);
+      } else {
+        const grid = document.createElement('div');
+        grid.className = 'grid-14';
+        for (let k = 0; k < 14; k++) {
+          const inp = document.createElement('input');
+          inp.type = 'text';
+          inp.name = `${prefix}${nameBase}-${k}`;
+          inp.placeholder = `Band ${16 + k} (0.00–1.00)`;
+          grid.appendChild(inp);
+        }
+        wrap.appendChild(grid);
+      }
+      return wrap;
+    }
+
+    function addLayerGroup(ai) {
+      const layersWrap = document.getElementById(`layers-wrap-${ai}`);
+      const nlayInput = document.querySelector(`input[name="aerosols-${ai}-NLAY"]`);
+      const ioadSel = document.querySelector(`select[name="aerosols-${ai}-IOAD"]`);
+      const nlay = parseInt(nlayInput.value || '0', 10);
+      const ioad = ioadSel.value;
+
+      // Clear existing
+      layersWrap.innerHTML = '';
+
+      for (let j = 0; j < nlay; j++) {
+        const fs = document.createElement('fieldset');
+        fs.innerHTML = `<legend>Layer ${j + 1}</legend>`;
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const colIdx = document.createElement('div');
+        colIdx.className = 'col';
+        colIdx.innerHTML = `
+          <label>Layer index (0–51)</label>
+          <input type="text" name="aerosols-${ai}-layer-${j}-index" placeholder="e.g., 10" />
+        `;
+
+        row.appendChild(colIdx);
+
+        if (ioad === '0') {
+          const colOD = document.createElement('div');
+          colOD.className = 'col';
+          colOD.innerHTML = `
+            <label>Optical Depth @ 1 μm (0.0000–1.0000)</label>
+            <input type="text" name="aerosols-${ai}-layer-${j}-od" placeholder="e.g., 0.1234" />
+          `;
+          row.appendChild(colOD);
+        } else {
+          const grid = document.createElement('div');
+          grid.className = 'grid-14';
+          for (let k = 0; k < 14; k++) {
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.name = `aerosols-${ai}-layer-${j}-od-${k}`;
+            inp.placeholder = `OD band ${16 + k} (0.0000–1.0000)`;
+            grid.appendChild(inp);
+          }
+          row.appendChild(grid);
+        }
+
+        fs.appendChild(row);
+        layersWrap.appendChild(fs);
+      }
+    }
+
+    function renderAerosol(ai) {
+      const fs = document.createElement('fieldset');
+      fs.id = `aerosol-${ai}`;
+      fs.innerHTML = `<legend>Aerosol ${ai + 1}</legend>`;
+
+      const row1 = document.createElement('div');
+      row1.className = 'row';
+
+      // NLAY
+      const c1 = document.createElement('div');
+      c1.className = 'col';
+      c1.innerHTML = `
+        <label>A2.1 NLAY: Number of layers with aerosols (0–51)</label>
+        <input type="number" min="0" max="51" name="aerosols-${ai}-NLAY" value="0" />
+      `;
+
+      // IOAD
+      const c2 = document.createElement('div');
+      c2.className = 'col';
+      c2.innerHTML = `
+        <label>A2.1 IOAD: Aerosol optical depth mode</label>
+        <select name="aerosols-${ai}-IOAD">
+          <option value="0">0 = use AERPAR (gray OD + per-layer single OD)</option>
+          <option value="1">1 = individual OD per band (14 values per layer)</option>
+        </select>
+        <span class="muted small">RRTMG_SW bands IB16–29 if per-band.</span>
+      `;
+
+      // ISSA
+      const c3 = document.createElement('div');
+      c3.className = 'col';
+      c3.innerHTML = `
+        <label>A2.1 ISSA: Single-scattering albedo mode</label>
+        <select name="aerosols-${ai}-ISSA">
+          <option value="0">0 = single value (IB16 only)</option>
+          <option value="1">1 = values for IB16–29 (14)</option>
+        </select>
+      `;
+
+      // IPHA
+      const c4 = document.createElement('div');
+      c4.className = 'col';
+      c4.innerHTML = `
+        <label>A2.1 IPHA: Asymmetry parameter mode</label>
+        <select name="aerosols-${ai}-IPHA">
+          <option value="0">0 = single value (IB16 only)</option>
+          <option value="1">1 = values for IB16–29 (14)</option>
+          <option value="2">2 = values for IB16–29 (14)</option>
+        </select>
+      `;
+
+      row1.appendChild(c1); row1.appendChild(c2); row1.appendChild(c3); row1.appendChild(c4);
+      fs.appendChild(row1);
+
+      // AERPAR group (shown only if IOAD == 0)
+      const aerparWrap = document.createElement('div');
+      aerparWrap.id = `aerpar-${ai}`;
+      aerparWrap.className = 'row';
+      aerparWrap.innerHTML = `
+        <div class="col">
+          <label>AERPAR1 (0.00–1.00)</label>
+          <input type="text" name="aerosols-${ai}-AERPAR1" placeholder="e.g., 0.10" />
+        </div>
+        <div class="col">
+          <label>AERPAR2 (0.00–1.00)</label>
+          <input type="text" name="aerosols-${ai}-AERPAR2" placeholder="e.g., 0.20" />
+        </div>
+        <div class="col">
+          <label>AERPAR3 (0.00–1.00)</label>
+          <input type="text" name="aerosols-${ai}-AERPAR3" placeholder="e.g., 0.30" />
+        </div>
+      `;
+      fs.appendChild(aerparWrap);
+
+      // Layers area
+      const layersWrap = document.createElement('div');
+      layersWrap.id = `layers-wrap-${ai}`;
+      fs.appendChild(layersWrap);
+
+      // SSA area
+      const ssaWrap = document.createElement('div');
+      ssaWrap.id = `ssa-${ai}`;
+      fs.appendChild(ssaWrap);
+
+      // IPHA area
+      const iphaWrap = document.createElement('div');
+      iphaWrap.id = `ipha-${ai}`;
+      fs.appendChild(iphaWrap);
+
+      aerosolsContainer.appendChild(fs);
+
+      // Handlers to refresh dynamic areas
+      const nlayInput = fs.querySelector(`input[name="aerosols-${ai}-NLAY"]`);
+      const ioadSel = fs.querySelector(`select[name="aerosols-${ai}-IOAD"]`);
+      const issaSel = fs.querySelector(`select[name="aerosols-${ai}-ISSA"]`);
+      const iphaSel = fs.querySelector(`select[name="aerosols-${ai}-IPHA"]`);
+
+      function refreshAERPAR() {
+        aerparWrap.style.display = (ioadSel.value === '0') ? 'flex' : 'none';
+      }
+
+      function refreshLayers() {
+        addLayerGroup(ai);
+      }
+
+      function refreshSSA() {
+        ssaWrap.innerHTML = '';
+        ssaWrap.appendChild(
+          bandInputs(`aerosols-${ai}-`, 'A2.2 SSA', 'ssa', issaSel.value === '0' ? 1 : 14)
+        );
+      }
+
+      function refreshIPHA() {
+        iphaWrap.innerHTML = '';
+        iphaWrap.appendChild(
+          bandInputs(`aerosols-${ai}-`, 'A2.3 Asymmetry parameter (g)', 'ipha', iphaSel.value === '0' ? 1 : 14)
+        );
+      }
+
+      nlayInput.addEventListener('input', refreshLayers);
+      ioadSel.addEventListener('change', () => { refreshAERPAR(); refreshLayers(); });
+      issaSel.addEventListener('change', refreshSSA);
+      iphaSel.addEventListener('change', refreshIPHA);
+
+      // Initial render
+      refreshAERPAR();
+      refreshLayers();
+      refreshSSA();
+      refreshIPHA();
+    }
+
+    function syncNAER() {
+      const desired = parseInt(naerInput.value || '1', 10);
+      const current = aerosolsContainer.children.length;
+
+      if (desired > current) {
+        for (let i = current; i < desired; i++) renderAerosol(i);
+      } else if (desired < current) {
+        // Remove from end
+        for (let i = current - 1; i >= desired; i--) {
+          aerosolsContainer.removeChild(aerosolsContainer.lastElementChild);
+        }
+      }
+    }
+
+    addBtn.addEventListener('click', () => {
+      naerInput.value = String((parseInt(naerInput.value || '0', 10) + 1));
+      syncNAER();
+    });
+
+    naerInput.addEventListener('input', syncNAER);
+
+    // Initial one aerosol
+    syncNAER();
+  </script>
+</body>
+</html>
