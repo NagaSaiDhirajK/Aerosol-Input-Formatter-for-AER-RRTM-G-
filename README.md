@@ -29,7 +29,6 @@ This tool provides a structured interface for entering aerosol parameters such a
 
 The formatter validates inputs, dynamically adjusts the form based on user selections, and generates a model-ready `Aer_input.txt` file to the local machine as a downloadable that can be directly placed in the IN_AER_RRTM input file for conducting simulations.
 
----
 
 ## Features
 
@@ -45,7 +44,6 @@ The formatter validates inputs, dynamically adjusts the form based on user selec
 - Dockerized deployment for reproducibility and security
 - This Dockerized deployment enables the users to run the application alongside its dependencies within the container
 
----
 
 ## Technologies Used
 
@@ -55,25 +53,21 @@ The formatter validates inputs, dynamically adjusts the form based on user selec
 - Docker (for containerized deployment)
 - Hugging Face Spaces (for cloud hosting)
 
----
 
 ## Local Development
 
 To run app locally, you can employ conda or any other virtual environment with the dependencies listed in **requirements.txt**.
 
----
 
 ## Contributions
 
 Contributions are welcome. Please open an issue or submit a pull request if you’d like to improve the interface, add support for new modes, enhance validation, or improve or add functionality based on various use cases.
 
----
 
 ## License
 
 This project is open-source and intended for research and educational use. Please cite appropriately if used in published work.
 
----
 
 ## Author
 
