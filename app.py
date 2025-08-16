@@ -240,9 +240,9 @@ def build_aer_input(aerosols):
             for sub in item[2:]:
                 if isinstance(sub[0], list):
                     for sub2 in sub:
-                        f.write(''.join(sub2) + '\n')
+                        buf.write(''.join(sub2) + '\n')
                 else:
-                    f.write(''.join(sub) + '\n')
+                    buf.write(''.join(sub) + '\n')
         elif isinstance(item, list):
             buf.write(''.join(item) + '\n')
         else:
@@ -342,4 +342,5 @@ def generate():
 if __name__ == "__main__":
 
     app.run(host="127.0.0.1", port=7860, debug=False)
+
 
