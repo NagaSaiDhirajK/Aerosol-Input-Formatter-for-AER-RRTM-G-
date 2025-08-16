@@ -238,8 +238,11 @@ def build_aer_input(aerosols):
         if i > 0:
             buf.write(''.join(item[0] + item[1]) + '\n')
             for sub in item[2:]:
-                for sub2 in sub:
-                    buf.write(''.join(sub2) + '\n')
+                if isinstance(sub[0], list):
+                    for sub2 in sub:
+                        f.write(''.join(sub2) + '\n')
+                else:
+                    f.write(''.join(sub) + '\n')
         elif isinstance(item, list):
             buf.write(''.join(item) + '\n')
         else:
@@ -337,4 +340,5 @@ def generate():
     )
 
 if __name__ == "__main__":
+
     app.run(host="127.0.0.1", port=5000, debug=False)
